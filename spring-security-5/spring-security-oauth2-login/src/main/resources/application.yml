@@ -1,0 +1,18 @@
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: f543da40b61539ad21b9
+            client-secret: d49fa1d635ecb502c6756096e5903ab5e1c9d976
+            redirectUri: "{baseUrl}/api/auth/oauth2/login/code/{registrationId}"
+          google:
+            client-id: 301947503177-emqplbufs101qvkhbplmpphhj9m4g9tu.apps.googleusercontent.com
+            client-secret: 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
+            # resource owner 其实就是 localhost:8081/api/auth/oauth2/login/code/google ....
+            redirectUri: "{baseUrl}/api/auth/oauth2/login/code/{registrationId}"
+
+
+server:
+  port: 8081
