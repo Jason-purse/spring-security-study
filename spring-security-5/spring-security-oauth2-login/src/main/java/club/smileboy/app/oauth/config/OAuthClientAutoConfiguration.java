@@ -1,15 +1,5 @@
 package club.smileboy.app.oauth.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
-import org.springframework.security.web.SecurityFilterChain;
-
 /**
  * @author FLJ
  * @date 2022/7/26
@@ -136,21 +126,21 @@ public class OAuthClientAutoConfiguration {
      * @return
      * @throws Exception
      */
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .oauth2Client(oauth2 -> oauth2
-                        .clientRegistrationRepository(this.clientRegistrationRepository())
-                        .authorizedClientRepository(this.authorizedClientRepository())
-                        .authorizedClientService(this.authorizedClientService())
-                        .authorizationCodeGrant(codeGrant -> codeGrant
-                                .authorizationRequestRepository(this.authorizationRequestRepository())
-                                .authorizationRequestResolver(this.authorizationRequestResolver())
-                                .accessTokenResponseClient(this.accessTokenResponseClient())
-                        )
-                );
-        return http.build();
-    }
+//    @Bean
+//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+//        http
+//                .oauth2Client(oauth2 -> oauth2
+//                        .clientRegistrationRepository(this.clientRegistrationRepository())
+//                        .authorizedClientRepository(this.authorizedClientRepository())
+//                        .authorizedClientService(this.authorizedClientService())
+//                        .authorizationCodeGrant(codeGrant -> codeGrant
+//                                .authorizationRequestRepository(this.authorizationRequestRepository())
+//                                .authorizationRequestResolver(this.authorizationRequestResolver())
+//                                .accessTokenResponseClient(this.accessTokenResponseClient())
+//                        )
+//                );
+//        return http.build();
+//    }
 
     /**
      *  创建一个oauth2 client 授权管理器 ...
@@ -158,24 +148,24 @@ public class OAuthClientAutoConfiguration {
      * @param authorizedClientRepository 授权客户端仓库 ??
      * @return 以下代码返回了一个grant type支持四种的 Auth2AuthorizedClientProvider composite ..   authorizedClientManager使用这个Provider 合作进行oauth2Client 授权 ...
      */
-    @Bean
-    public OAuth2AuthorizedClientManager authorizedClientManager(
-            ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AuthorizedClientRepository authorizedClientRepository) {
-
-        OAuth2AuthorizedClientProvider authorizedClientProvider =
-                OAuth2AuthorizedClientProviderBuilder.builder()
-                        .authorizationCode()
-                        .refreshToken()
-                        .clientCredentials()
-                        .password()
-                        .build();
-
-        DefaultOAuth2AuthorizedClientManager authorizedClientManager =
-                new DefaultOAuth2AuthorizedClientManager(
-                        clientRegistrationRepository, authorizedClientRepository);
-        authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
-
-        return authorizedClientManager;
-    }
+//    @Bean
+//    public OAuth2AuthorizedClientManager authorizedClientManager(
+//            ClientRegistrationRepository clientRegistrationRepository,
+//            OAuth2AuthorizedClientRepository authorizedClientRepository) {
+//
+//        OAuth2AuthorizedClientProvider authorizedClientProvider =
+//                OAuth2AuthorizedClientProviderBuilder.builder()
+//                        .authorizationCode()
+//                        .refreshToken()
+//                        .clientCredentials()
+//                        .password()
+//                        .build();
+//
+//        DefaultOAuth2AuthorizedClientManager authorizedClientManager =
+//                new DefaultOAuth2AuthorizedClientManager(
+//                        clientRegistrationRepository, authorizedClientRepository);
+//        authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
+//
+//        return authorizedClientManager;
+//    }
 }

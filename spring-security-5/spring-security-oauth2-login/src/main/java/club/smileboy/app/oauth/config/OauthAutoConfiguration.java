@@ -4,8 +4,11 @@ import club.smileboy.app.oauth.util.JsonUtil;
 import club.smileboy.app.oauth.util.ResponseUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
@@ -31,9 +34,17 @@ import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.web.bind.annotation.RequestMethod;
 
+import javax.servlet.ServletException;
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.*;
@@ -132,6 +143,7 @@ public class OauthAutoConfiguration {
     }
 
 
+
     /**
      * 通过 SecurityFilterChain 配置
      *
@@ -141,6 +153,10 @@ public class OauthAutoConfiguration {
      */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, ClientRegistrationRepository clientRegistrationRepository) throws Exception {
+
+        // 当我们在这里调用build的时候,
+//        其实就是在给builder 提供SecurityConfigurer
+
         http
                 .oauth2Login(oauth2Configurer -> {
                     oauth2Configurer.redirectionEndpoint()
@@ -163,7 +179,12 @@ public class OauthAutoConfiguration {
                             .oidcUserService(oidcUserService());
                 })
                 .logout()
+                // 登出的时候,可以删除cookie内容
+                // 但是这样无法使用基于hash的cookie token remember me 服务 ..
+                .deleteCookies("JSESSIONID")
                 .logoutSuccessHandler(logoutSuccessHandler(clientRegistrationRepository))
+                // 加上这一行,我们的 DefaultLogoutGeneratePageFilter就生效了 ...
+                .logoutRequestMatcher(new AntPathRequestMatcher("/logout", RequestMethod.POST.name()))
                 .and()
                 .exceptionHandling()
                 .accessDeniedHandler(accessDeniedHandler())
@@ -172,12 +193,147 @@ public class OauthAutoConfiguration {
                 // 因为它和默认的oauth-client 创建的authenticationEntryPoint 进行结合,先匹配我们这里写的,然后匹配其他规则 ...
                 .defaultAuthenticationEntryPointFor(authenticationEntryPoint(), new AntPathRequestMatcher("/api/**"))
                 .and()
+                .sessionManagement(sessionManagement())
                 .authorizeHttpRequests(authorize -> authorize
 //                        .mvcMatchers("/login").permitAll()
                                 .anyRequest().authenticated()
-                );
+                )
+                .csrf()
+                .disable()
+                .formLogin()
+//                .loginPage("/form/login/index")
+//                 这里需要 一定要以 / 开头
+                .loginProcessingUrl("/form/login/processing")
+                .successHandler(formLoginSuccessHandler())
+                .permitAll();
+//                .successForwardUrl("/")
+//                .failureForwardUrl("form");
         return http.build();
     }
+
+    /**
+     * 表单登录 成功处理器 ...
+     */
+    private AuthenticationSuccessHandler formLoginSuccessHandler() {
+        return (request, response, authentication) -> {
+
+            System.out.println("登录成功. ...");
+            // 凭证信息打印
+            final Object credentials = authentication.getCredentials();
+            System.out.println("凭证信息:  ");
+            System.out.println(credentials);
+            System.out.println("身份信息:  ");
+            System.out.println(authentication.getPrincipal());
+            System.out.println("------------------------------------------");
+
+
+            // 将认证信息,返回出去 ..
+            ResponseUtil.doAction(response,res -> {
+                try(ServletOutputStream outputStream = res.getOutputStream()) {
+                   outputStream.write(Objects.requireNonNull(JsonUtil.toJSON(
+                           new LinkedHashMap<String,Object>() {{
+                               put("code",200);
+                               put("message","login success !!!");
+                               put("user",authentication.getPrincipal());
+                           }}
+                   )).getBytes());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+        };
+    }
+
+    /**
+     * 会话管理
+     *
+     * 并发会话控制
+     * @return
+     */
+    private Customizer<SessionManagementConfigurer<HttpSecurity>> sessionManagement() {
+        return configurer -> configurer.maximumSessions(1)
+                // 这种方式,如果用户不退出直接关闭浏览器,那么在token 过期之前无法登录
+                .maxSessionsPreventsLogin(true)
+                .and()
+                // 还可以执行session 创建策略
+                // 也就是不会创建session,也不会使用包含在SecurityContext中的信息
+                // 先不设置 ...
+//                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                // 当用户没有在当前的登录请求中验证,那么它会创建一个非匿名的 Authentication,假设之前的过滤器都已经对它认证过 ..
+                // 然后执行这个策略,如果当前用户没有认证,那么同样会执行 InvalidSessionStrategy,例如跳转页面重新登录,或者给出提示 ...
+                // 根据SessionManagementConfigurer#getSessionAuthenticationStrategy() 可以发现,我们仅仅需要配置一点点东西即可,没必要自己重写SessionAuthenticationStrategy ..
+//                .sessionAuthenticationStrategy(new ConcurrentSessionControlAuthenticationStrategy())
+                // 无效会话策略 ...
+
+                // 当认证失败之后(会话控制导致的认证失败), 那么我们直接重写会话认证失败处理器 ...
+                .sessionAuthenticationFailureHandler(new AuthenticationFailureHandler() {
+                    @Override
+                    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+                        ResponseUtil.doAction(response,res -> {
+                            try(final ServletOutputStream outputStream = res.getOutputStream()) {
+                                // 然后直接告诉,当前用户已经登录即可 ...
+                                outputStream.write(Objects.requireNonNull(JsonUtil.toJSON(new LinkedHashMap<String, String>() {{
+                                    put("code", "400");
+                                    put("message", "当前用户已经登录 !!!");
+                                }})).getBytes());
+
+                            }catch (Exception e) {
+                                // pass
+                            }
+                        });
+                    }
+                })
+                .sessionAuthenticationErrorUrl("/api/session/login/failure");
+                // 当我们明知道请求携带JSESSIONID (检测到无效会话之后,如果重定向到login,会无济于事)
+                // 因为Cookie 携带登录的时候,会触发这个函数,于是进入了死循环 ..
+                // 所以我们就不再处理,交给后面的认证授权过滤器进行判断,未登录就重定向到login,在登录表达请求的时候,由于
+                // 这个没有设定,那么就向下处理,交给认证授权过滤器,于是登录成功 ..
+                // 总而言之下面的这个代码请求转发的是内部资源(但是一般spring mvc前后端分离项目并没有servlet 内部资源)
+                // 也不建议开启重定向,导致代码进入死循环(不断判断存在无效JSESSIONID 这很离谱,直接让它登录就行了,过滤掉这个错误) ..
+//                .invalidSessionStrategy((request, response) -> ResponseUtil.doAction(response, res -> {
+//                    System.out.println("会话失效,无效的sessionId");
+//
+////                    try (ServletOutputStream outputStream = res.getOutputStream()) {
+////                        outputStream.write(Objects.requireNonNull(JsonUtil.toJSON(new LinkedHashMap<String, String>() {{
+////                            put("code", "200");
+////                            put("message", "session outime!!!");
+////                        }})).getBytes());
+//                        // 请重新登录(也就是它没有直接Logout,那么携带了一个无效的sessionId,那么此时我们需要 转发到login页面进行登录
+//
+////                    }catch (Exception e) {
+//                        // pass
+////                    }
+//
+//                    // 重定向 login
+//                    // 重定向cookie 会丢失 ..
+//                    // 通过请求转发解决 ...
+//                    Cookie[] cookies = request.getCookies();
+//                    for (Cookie cookie : cookies) {
+//                        if(cookie.getName().equals("JSESSIONID")) {
+//                            cookie.setMaxAge(0);
+//                            response.addCookie(cookie);
+//                            break;
+//                        }
+//                    }
+//                    try {
+//                        // 请求转发 ...
+//                        // 这个转发并没有走 dispatch ... 这是问题
+//                        request.getRequestDispatcher("/index.html").forward(request, response);
+//                    } catch (ServletException | IOException e) {
+//                        e.printStackTrace();
+//                    }
+//                }));
+    }
+
+    /**
+     * 需要这个监听HttpSession Event 事件
+     * @return
+     */
+    @Bean
+    public HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
+    }
+
 
     private AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> ResponseUtil.doAction(response, res -> {

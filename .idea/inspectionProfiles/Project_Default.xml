@@ -5,6 +5,7 @@
       <option name="customHeaders">
         <set>
           <option value="client_id=hello&amp;client_secret=123456&amp;grant_type=authorization_code&amp;code=CdQFnL&amp;redirect_uri=http" />
+          <option value="JESSIONID" />
         </set>
       </option>
     </inspection_tool>
