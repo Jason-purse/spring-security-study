@@ -20,6 +20,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>spring-security-oauth2-login</module>
+        <module>spring-security-oauth2-practice</module>
     </modules>
 
 </project>
