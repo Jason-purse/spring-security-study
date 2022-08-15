@@ -4,9 +4,11 @@ import java.util.List;
 
 public class UserDetailDto {
 
-    private String name;
+    private String userName;
 
     private String email;
+
+    private String password;
 
     private String sex;
 
@@ -14,12 +16,20 @@ public class UserDetailDto {
 
     private List<String> permissions;
 
-    public String getName() {
-        return name;
+    public void setPassword(String password) {
+        this.password = password;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public String getPassword() {
+        return password;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String name) {
+        this.userName = name;
     }
 
     public String getEmail() {

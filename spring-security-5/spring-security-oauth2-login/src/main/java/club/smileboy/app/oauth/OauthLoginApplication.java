@@ -2,6 +2,7 @@ package club.smileboy.app.oauth;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * @author FLJ
@@ -19,6 +20,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 也就是让用户能够通过存在的一种oauth2 提供器登录到自己开发的系统中 ... (或者通过openId登录也是可以的) ...
  */
 @SpringBootApplication
+@EnableScheduling
 public class OauthLoginApplication {
     public static void main(String[] args) {
         SpringApplication.run(OauthLoginApplication.class,args);

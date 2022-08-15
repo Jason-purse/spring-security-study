@@ -6,6 +6,7 @@
         <set>
           <option value="client_id=hello&amp;client_secret=123456&amp;grant_type=authorization_code&amp;code=CdQFnL&amp;redirect_uri=http" />
           <option value="JESSIONID" />
+          <option value="username=zs&amp;password=1234" />
         </set>
       </option>
     </inspection_tool>

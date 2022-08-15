@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.lang.Nullable;
+import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
 import java.util.Map;
@@ -72,6 +73,7 @@ public class JsonUtil {
                return objectMapper.convertValue(object, clazz);
            }catch (Exception e) {
                // pass
+               e.printStackTrace();
            }
         }
         return null;
@@ -89,6 +91,18 @@ public class JsonUtil {
             try {
                 return objectMapper.convertValue(object, typeReference);
             }catch (Exception e) {
+                // pass
+            }
+        }
+        return null;
+    }
+
+    public static <T> T fromJson(String json,Class<T> clazz ) {
+        if(StringUtils.hasText(json)) {
+            try {
+                return (T)objectMapper.readValue(json,clazz);
+            }catch (Exception e) {
+                e.printStackTrace();
                 // pass
             }
         }

@@ -2,6 +2,7 @@ package club.smileboy.app.util;
 
 import org.springframework.http.MediaType;
 
+import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
 
 /**
@@ -16,7 +17,7 @@ public class ResponseUtil {
         throw new IllegalArgumentException("Response util can't instantiate !!!");
     }
 
-    public static void writeUtf8EncodingMessage(HttpServletResponse response, Operation responseConsumer) {
+    public static void writeUtf8EncodingMessage(ServletResponse response, Operation responseConsumer) {
         response.setCharacterEncoding("utf-8");
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         responseConsumer.execute();

@@ -1,8 +1,12 @@
 package club.smileboy.app.authentication;
 
+import club.smileboy.app.event.AuthenticationCacheEvent;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
+import org.springframework.context.event.EventListener;
+import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -24,6 +28,11 @@ public class AuthenticationServiceImpl implements AuthenticationService , Applic
         // 创建仓库 ..
         authenticationInfoRepository = new DefaultAuthenticationInfoRepository();
     }
+
+    @EventListener(AuthenticationCacheEvent.class)
+    public void authenticationCache(AuthenticationCacheEvent event) {
+        authenticationInfoRepository.saveAuthenticationInfo(event.getUserInfo());
+    }
 }
 
 /**
@@ -35,14 +44,11 @@ class DefaultAuthenticationInfoRepository implements AuthenticationInfoRepositor
     @Override
     public UserInfo findAuthenticationInfo(String token) {
         return Optional.ofNullable(userInfos.get(token))
-                .orElseThrow(() -> new IllegalStateException("当前用户未登录 ..."));
+                .orElseThrow(() -> new IllegalStateException("未发现登录用户信息 ..."));
     }
 
     @Override
     public void saveAuthenticationInfo(UserInfo userInfo) {
-        if(userInfos.containsKey(userInfo.getUserName())) {
-            throw new IllegalStateException("当前用户已经登录,请不要重复登录 !!!");
-        }
-        userInfos.put(userInfo.getUserName(),userInfo);
+        userInfos.put(userInfo.getUsername(),userInfo);
     }
 }
