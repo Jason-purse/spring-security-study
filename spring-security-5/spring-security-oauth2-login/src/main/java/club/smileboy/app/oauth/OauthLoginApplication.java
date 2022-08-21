@@ -23,6 +23,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class OauthLoginApplication {
     public static void main(String[] args) {
-        SpringApplication.run(OauthLoginApplication.class,args);
+        SpringApplication springApplication = new SpringApplication(OauthLoginApplication.class);
+        springApplication
+                // 给环境前缀(让运行在相同机器上的不同应用使用不同的环境变量,它仅仅只是一个标识,不会影响最终的环境变量)  和具体的环境变量进行解耦...
+                .setEnvironmentPrefix("mlnlco.app");
+        springApplication.run(args);
     }
 }

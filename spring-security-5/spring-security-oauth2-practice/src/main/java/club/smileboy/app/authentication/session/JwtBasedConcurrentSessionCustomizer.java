@@ -2,27 +2,28 @@ package club.smileboy.app.authentication.session;
 
 import club.smileboy.app.authentication.UserInfo;
 import club.smileboy.app.model.commons.JwtEntity;
-import club.smileboy.app.util.JsonUtil;
 import club.smileboy.app.util.JwtUtil;
-import club.smileboy.app.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.context.MessageSourceAware;
 import org.springframework.context.support.MessageSourceAccessor;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.SpringSecurityMessageSource;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.authentication.session.SessionAuthenticationException;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.session.ConcurrentSessionFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.web.filter.GenericFilterBean;
 
@@ -33,8 +34,6 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
@@ -54,18 +53,46 @@ import java.util.List;
  **/
 public class JwtBasedConcurrentSessionCustomizer<H extends HttpSecurityBuilder<H>> extends AbstractHttpConfigurer<SessionManagementConfigurer<H>, H> {
     private final SessionRegistry sessionRegistry;
+    private RequestMatcher loginMatcher;
+    private AuthenticationTrustResolver authenticationTrustResolver;
     public JwtBasedConcurrentSessionCustomizer(SessionRegistry sessionRegistry) {
         this.sessionRegistry = sessionRegistry;
     }
     @Override
     public void configure(H builder) throws Exception {
+        AppConcurrentSessionFilter filter = null;
+        if(loginMatcher != null && authenticationTrustResolver != null) {
+            filter = new AppConcurrentSessionFilter(sessionRegistry,authenticationTrustResolver,loginMatcher);
+        }
+        else if(loginMatcher != null) {
+            filter = new AppConcurrentSessionFilter(sessionRegistry,loginMatcher);
+        }
+
+        else if(authenticationTrustResolver != null) {
+            filter = new AppConcurrentSessionFilter(sessionRegistry,authenticationTrustResolver);
+        }
+        else {
+            filter = new AppConcurrentSessionFilter(sessionRegistry);
+        }
         // 配置去替代并发会话控制 ...
-        builder.addFilterBefore(this.postProcess(new AppConcurrentSessionFilter(sessionRegistry)), ConcurrentSessionFilter.class);
+        builder.addFilterBefore(this.postProcess(filter), ConcurrentSessionFilter.class);
+    }
+
+
+    public JwtBasedConcurrentSessionCustomizer<H> loginMatcher(RequestMatcher requestMatcher) {
+        Assert.notNull(requestMatcher,"login matcher must not be null !!!");
+        this.loginMatcher = requestMatcher;
+        return this;
+    }
+
+    public JwtBasedConcurrentSessionCustomizer<H> trustAuthenticationResolver(AuthenticationTrustResolver authenticationTrustResolver) {
+        this.authenticationTrustResolver = authenticationTrustResolver;
+        return this;
     }
 
     public static class AppConcurrentSessionAuthenticationStrategy implements SessionAuthenticationStrategy , MessageSourceAware {
 
-        private SessionRegistry sessionRegistry;
+        private final SessionRegistry sessionRegistry;
 
         public AppConcurrentSessionAuthenticationStrategy(SessionRegistry sessionRegistry) {
             Assert.notNull(sessionRegistry,"sessionRegistry must be exists !!");
@@ -131,13 +158,39 @@ public class JwtBasedConcurrentSessionCustomizer<H extends HttpSecurityBuilder<H
 /**
  * 自定义的 token 过期处理 ..
  * 可以经过 应用上下文处理 ...
+ *
+ * 由于它过滤在登出之前,登出之后,进行了重定向 ... 导致这里拦截到就直接给出会话过期,没有登出成功提示 ！！！
+ * 所以我们需要配合登出处理器,才能正确处理
  */
 class AppConcurrentSessionFilter extends GenericFilterBean {
     private final Logger logger = LoggerFactory.getLogger(AppConcurrentSessionFilter.class);
 
     private final SessionRegistry  sessionRegistry;
+    private AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
+    /**
+     * 登录路径 ...
+     */
+    private  RequestMatcher requestMatcher = new AntPathRequestMatcher("/login");
+
     public AppConcurrentSessionFilter(SessionRegistry sessionRegistry) {
+        this(sessionRegistry,new AntPathRequestMatcher("/login"));
+    }
+
+    public AppConcurrentSessionFilter(SessionRegistry sessionRegistry,AuthenticationTrustResolver authenticationTrustResolver,RequestMatcher loginMatcher) {
+        Assert.notNull(sessionRegistry,"sessionRegistry must not be null !!");
+        Assert.notNull(trustResolver,"trustResolver must not be null !!");
+        Assert.notNull(requestMatcher,"loginMatcher must not be null !!");
         this.sessionRegistry = sessionRegistry;
+        this.trustResolver = authenticationTrustResolver;
+        this.requestMatcher = loginMatcher;
+    }
+
+    public AppConcurrentSessionFilter(SessionRegistry sessionRegistry,RequestMatcher loginMatcher) {
+        this(sessionRegistry,new AuthenticationTrustResolverImpl(),loginMatcher);
+    }
+
+    public AppConcurrentSessionFilter(SessionRegistry sessionRegistry,AuthenticationTrustResolver authenticationTrustResolver) {
+        this(sessionRegistry,authenticationTrustResolver,new AntPathRequestMatcher("/login"));
     }
 
     @Override
@@ -147,9 +200,15 @@ class AppConcurrentSessionFilter extends GenericFilterBean {
 
     private void doInternalFilter(ServletRequest servletRequest, ServletResponse servletResponse,FilterChain filterChain) throws ServletException, IOException {
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        // login 路径我们不拦截 ...
+        if (!requireValidSession((HttpServletRequest) servletRequest)) {
+            filterChain.doFilter(servletRequest,servletResponse);
+            return ;
+        }
 
-        if (authentication != null) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        // 非匿名才解析 ...
+        if (authentication != null && !trustResolver.isAnonymous(authentication)) {
             UserInfo principal = (UserInfo) authentication.getPrincipal();
             boolean isExpired = false;
             if(principal.isConfiged()) {
@@ -166,29 +225,55 @@ class AppConcurrentSessionFilter extends GenericFilterBean {
                 }
             }
 
-            // 如果redis不存在这个token 也算未登录 ...
-            SessionInformation sessionInformation = sessionRegistry.getSessionInformation(principal.getToken());
-            if(sessionInformation == null) {
-                isExpired = true;
+            // 如果未过期,但是从数据中心查到它过期了,那么显式的提醒它 ..
+            // 否则 本身就过期了,就当作匿名用户登录即可 ...
+            if(!isExpired) {
+                // 如果redis不存在这个token 也算未登录 ...
+                SessionInformation sessionInformation = sessionRegistry.getSessionInformation(principal.getToken());
+                if(sessionInformation == null) {
+                    isExpired = true;
+                }
+
+                // 判断是否过期了 ...
+//                if (isExpired) {
+//                    // 如果过期了 ..
+//                    ResponseUtil.writeUtf8EncodingMessage(servletResponse,() -> {
+//                        try {
+//                            LinkedHashMap<String, String> map = new LinkedHashMap<String, String>() {{
+//                                put("code", "200");
+//                                put("message", "您的账户已经过期 ...");
+//                            }};
+//                            servletResponse.getOutputStream().write(JsonUtil.asJSON(map).getBytes());
+//                        }catch (Exception e) {
+//                            // pass
+//                            throw new IllegalArgumentException("系统异常 !!!");
+//                        }
+//                    });
+//                    return ;
+//                }
             }
-            // 判断是否过期了 ...
-            if (isExpired) {
-                // 如果过期了 ..
-                ResponseUtil.writeUtf8EncodingMessage(servletResponse,() -> {
-                    try {
-                        LinkedHashMap<String, String> map = new LinkedHashMap<String, String>() {{
-                            put("code", "200");
-                            put("message", "您的账户已经过期 ...");
-                        }};
-                        servletResponse.getOutputStream().write(JsonUtil.asJSON(map).getBytes());
-                    }catch (Exception e) {
-                        // pass
-                        throw new IllegalArgumentException("系统异常 !!!");
-                    }
-                });
-                return ;
+            if(isExpired) {
+                // 匿名用户 ..
+                doAnonymousAuthentication();
             }
+
         }
         filterChain.doFilter(servletRequest,servletResponse);
+    }
+
+    private boolean requireValidSession(HttpServletRequest servletRequest) {
+        return !requestMatcher.matcher(servletRequest).isMatch();
+    }
+
+    // 给出匿名认证
+    // 后续的anonymousAuthenticationFilter 会处理
+    private void doAnonymousAuthentication() {
+        SecurityContext emptyContext = SecurityContextHolder.createEmptyContext();
+        SecurityContextHolder.setContext(emptyContext);
+    }
+
+    public void setTrustResolver(AuthenticationTrustResolver trustResolver) {
+        Assert.notNull(trustResolver, "trustResolver cannot be null");
+        this.trustResolver = trustResolver;
     }
 }

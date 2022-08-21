@@ -3,30 +3,18 @@ package club.smileboy.app.config;
 import club.smileboy.app.authentication.*;
 import club.smileboy.app.authentication.session.JwtBasedConcurrentSessionCustomizer;
 import club.smileboy.app.util.JsonUtil;
-import club.smileboy.app.util.JwtUtil;
 import club.smileboy.app.util.ResponseUtil;
 import org.springframework.beans.BeanUtils;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationDetailsSource;
 import org.springframework.security.authentication.AuthenticationServiceException;
-import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configurers.userdetails.DaoAuthenticationConfigurer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -34,16 +22,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationException;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.session.InvalidSessionStrategy;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.LinkedHashMap;
 
 /**
@@ -96,6 +80,12 @@ public class AppAuthenticationConfiguration {
                 .failureHandler(formAuthenticationFailureHandler())
                 .successHandler(formLoginSuccessHandler())
                 .and()
+                .logout()
+                .logoutSuccessHandler(logoutSuccessHandler())
+                .and()
+                // 等待处理的 oauth2 login ..
+                .oauth2Login()
+                .and()
                 .exceptionHandling()
                 .authenticationEntryPoint(authenticationEntryPoint())
                 // 这里的访问拒绝其实是 权限拒绝 ..
@@ -104,6 +94,39 @@ public class AppAuthenticationConfiguration {
                 .csrf()
                 .disable()
                 .build();
+    }
+
+    /**
+     *
+     * 这样也就直接处理了 ....
+     * logout Success Handler
+     * @return  登出处理器
+     */
+    private LogoutSuccessHandler logoutSuccessHandler() {
+//        return httpStreamLogoutSuccessHandler();
+        return (request, response, authentication) ->  {
+            response.setHeader("Authorization",null);
+            // 重定向到login?logout
+            response.sendRedirect("/login?logout");
+        };
+    }
+
+    private LogoutSuccessHandler httpStreamLogoutSuccessHandler() {
+        return (request, response, authentication) ->  {
+            ResponseUtil.writeUtf8EncodingMessage(response,() -> {
+                response.setHeader("Authorization",null);
+                try {
+                    response.getOutputStream().write(JsonUtil.asJSON(new LinkedHashMap<String,String>() {{
+                        put("code","200");
+                        put("message","登出成功!!!");
+                    }}).getBytes());
+                    response.getOutputStream().close();
+                }catch (Exception e) {
+                    // pass
+                    throw new IllegalArgumentException("系统异常 !!!");
+                }
+            });
+        };
     }
 
     /**
