@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/spring-security-5/spring-security-5.iml" filepath="$PROJECT_DIR$/spring-security-5/spring-security-5.iml" />
+      <module fileurl="file://$PROJECT_DIR$/spring-security-5/spring-security-auth-server/spring-security-auth-server.iml" filepath="$PROJECT_DIR$/spring-security-5/spring-security-auth-server/spring-security-auth-server.iml" />
       <module fileurl="file://$PROJECT_DIR$/spring-security-oauth2-login/spring-security-oauth2-login.iml" filepath="$PROJECT_DIR$/spring-security-oauth2-login/spring-security-oauth2-login.iml" />
       <module fileurl="file://$PROJECT_DIR$/spring-security-5/spring-security-oauth2-practice/spring-security-oauth2-practice.iml" filepath="$PROJECT_DIR$/spring-security-5/spring-security-oauth2-practice/spring-security-oauth2-practice.iml" />
       <module fileurl="file://$PROJECT_DIR$/spring-security-server/spring-security-server.iml" filepath="$PROJECT_DIR$/spring-security-server/spring-security-server.iml" />

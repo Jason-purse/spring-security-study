@@ -7,6 +7,7 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="spring-security-auth-server" />
         <module name="spring-security-sso-client" />
         <module name="spring-security-sso-resource-server" />
         <module name="spring-security-oauth2-resource-server" />
@@ -18,10 +19,9 @@
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="spring-security-5" target="8" />
+      <module name="spring-security-auth-server" target="8" />
       <module name="spring-security-oauth2-login" target="8" />
-      <module name="spring-security-oauth2-practice" target="16" />
-      <module name="spring-security-oauth2-resource-server" target="8" />
-      <module name="spring-security-openId" target="8" />
+      <module name="spring-security-oauth2-practice" target="8" />
       <module name="spring-security-server" target="1.8" />
       <module name="spring-security-sso-client" target="8" />
       <module name="spring-security-sso-resource-server" target="8" />
