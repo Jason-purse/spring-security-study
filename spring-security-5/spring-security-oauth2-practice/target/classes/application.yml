@@ -1,0 +1,15 @@
+user:
+  details:
+    - userName: zs
+      email: j617229004@gmail.com
+      password: 1234
+      sex: 男
+      roles:
+        - admin
+        - employee
+        - manager
+      permissions:
+        - music:read
+        - music:write
+        - music:update
+        - music:delete

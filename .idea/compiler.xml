@@ -9,9 +9,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="spring-security-sso-client" />
         <module name="spring-security-sso-resource-server" />
-        <module name="spring-security-oauth2-resource-server" />
         <module name="spring-security-server" />
-        <module name="spring-security-openId" />
         <module name="spring-security-oauth2-login" />
         <module name="spring-security-oauth2-practice" />
       </profile>
