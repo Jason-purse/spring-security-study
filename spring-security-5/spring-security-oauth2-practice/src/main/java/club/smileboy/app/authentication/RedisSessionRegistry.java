@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 public class RedisSessionRegistry implements SessionRegistry, ApplicationListener<AbstractAuthenticationEvent> {
 
     protected final Log logger = LogFactory.getLog(RedisSessionRegistry.class);
+
+
     private final ConcurrentHashMap<String,String> sessionCache = new ConcurrentHashMap<>(8);
 
     /**

@@ -1,10 +1,16 @@
 package club.smileboy.app.authorization.server.config;
 
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.KeySourceException;
+import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.JWSAlgorithmFamilyJWSKeySelector;
+import com.nimbusds.jose.proc.JWSKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.proc.ConfigurableJWTProcessor;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+import com.nimbusds.jwt.proc.JWTProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -12,11 +18,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.security.config.annotation.SecurityConfigurerAdapter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
@@ -26,17 +36,25 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.config.ProviderSettings;
+import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.util.List;
 import java.util.UUID;
 
 @Configuration
 public class SecurityConfig {
+
+	private final KeyPair keyPair;
+	public SecurityConfig() {
+		keyPair = generateRsaKey();
+	}
 
 	/**
 	 * 第一个表示协议端点的 过滤连 ...
@@ -52,6 +70,8 @@ public class SecurityConfig {
 		// 往往我们需要额外的高级配置 ...
 		OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 		http
+				// 让它能够解析Jwt Token ...
+				.oauth2ResourceServer(OAuth2ResourceServerConfigurer::jwt)
 			// Redirect to the login page when not authenticated from the
 			// authorization endpoint
 			.exceptionHandling((exceptions) -> exceptions
@@ -62,6 +82,16 @@ public class SecurityConfig {
 		return http.build();
 	}
 
+	/**
+	 * 由于这里是Spring security authorization  server
+	 * 直接从 JwKSource中获取即可 ...
+	 * @return
+	 * @throws KeySourceException
+	 */
+	@Bean
+	public JwtDecoder jwtDecoder() throws KeySourceException {
+		return NimbusJwtDecoder.withPublicKey((RSAPublicKey)keyPair.getPublic()).build();
+	}
 
 	/**
 	 * 管理已经注册的ClientRepository ...
@@ -77,7 +107,7 @@ public class SecurityConfig {
 				.authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
 				.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
 				.redirectUri("http://127.0.0.1:8080/login/oauth2/code/messaging-client-oidc")
-				.redirectUri("http://127.0.0.1:8080/authorized")
+				.redirectUri("http://127.0.0.1:8081/api/auth/oauth2/login/code/mlnlco")
 				.redirectUri("https://www.baidu.com/authorized")
 				.scope(OidcScopes.OPENID)
 				.scope(OidcScopes.PROFILE)
@@ -111,7 +141,6 @@ public class SecurityConfig {
 	 */
 	@Bean 
 	public JWKSource<SecurityContext> jwkSource() {
-		KeyPair keyPair = generateRsaKey();
 		RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
 		RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
 		RSAKey rsaKey = new RSAKey.Builder(publicKey)
@@ -126,7 +155,7 @@ public class SecurityConfig {
 	 * 生成公私密钥对 ...
 	 * @return
 	 */
-	private static KeyPair generateRsaKey() { 
+	private static KeyPair generateRsaKey() {
 		KeyPair keyPair;
 		try {
 			// rsa ...
@@ -137,6 +166,8 @@ public class SecurityConfig {
 		catch (Exception ex) {
 			throw new IllegalStateException(ex);
 		}
+
+		System.out.println("generate rsa key pair !!!");
 		return keyPair;
 	}
 

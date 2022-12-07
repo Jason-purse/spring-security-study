@@ -6,18 +6,28 @@ import club.smileboy.app.util.JsonUtil;
 import club.smileboy.app.util.ResponseUtil;
 import org.springframework.beans.BeanUtils;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationEventPublisher;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.SecurityConfigurerAdapter;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
@@ -73,6 +83,18 @@ public class AppAuthenticationConfiguration {
                 .securityContext()
                 .securityContextRepository(securityContextRepository())
                 .and()
+
+                .logout()
+                .logoutSuccessHandler(logoutSuccessHandler())
+                .and()
+                // 等待处理的 oauth2 login ..
+//                .oauth2Login()
+//                .and()
+                .exceptionHandling()
+                .authenticationEntryPoint(authenticationEntryPoint())
+                // 这里的访问拒绝其实是 权限拒绝 ..
+                .accessDeniedHandler(accessDeniedHandler())
+                .and()
                 .formLogin()
                 // 收集进行认证详情的信息
 //                .authenticationDetailsSource()
@@ -80,20 +102,36 @@ public class AppAuthenticationConfiguration {
                 .failureHandler(formAuthenticationFailureHandler())
                 .successHandler(formLoginSuccessHandler())
                 .and()
-                .logout()
-                .logoutSuccessHandler(logoutSuccessHandler())
-                .and()
-                // 等待处理的 oauth2 login ..
-                .oauth2Login()
-                .and()
-                .exceptionHandling()
-                .authenticationEntryPoint(authenticationEntryPoint())
-                // 这里的访问拒绝其实是 权限拒绝 ..
-                .accessDeniedHandler(accessDeniedHandler())
+                // 当前HttpSecurity 认证提供器配置 ...
+                .authenticationProvider(currentHttpSecurityAuthenticationProvider())
+                .apply(new SecurityConfigurerAdapter<DefaultSecurityFilterChain, HttpSecurity>() {
+                    @Override
+                    public void init(HttpSecurity builder) throws Exception {
+                        // 设置事件监听器 ...
+                        AuthenticationManagerBuilder sharedObject = builder.getSharedObject(AuthenticationManagerBuilder.class);
+                        ApplicationContext context = builder.getSharedObject(ApplicationContext.class);
+                        // 基于自动配置(必然包含一个) ...
+                        sharedObject.authenticationEventPublisher(context.getBean(AuthenticationEventPublisher.class));
+                    }
+                })
                 .and()
                 .csrf()
                 .disable()
                 .build();
+    }
+
+    // 让当前认证提供器处理完毕之后 完毕 ..
+    private AuthenticationProvider currentHttpSecurityAuthenticationProvider() {
+        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider() {
+            @Override
+            public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+                System.out.println("httpSecurity provider authenticate ...");
+                return super.authenticate(authentication);
+            }
+        };
+        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
+        daoAuthenticationProvider.setUserDetailsService(userDetailsService());
+        return  daoAuthenticationProvider;
     }
 
     /**

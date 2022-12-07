@@ -159,7 +159,8 @@ public class OauthAutoConfiguration {
 
         http
                 .oauth2Login(oauth2Configurer -> {
-                    oauth2Configurer.redirectionEndpoint()
+                    oauth2Configurer
+                            .redirectionEndpoint()
                             // OAuth 2.0 Login leverages the Authorization Code Grant. Therefore, the authorization credential is the authorization code.
                             // 由于oauth2 利用的是授权码授权,授权凭证是一个授权码 ...
                             // 默认重定向地址 OAuth2LoginAuthenticationFilter.DEFAULT_FILTER_PROCESSES_URI定义的baseUri ..
@@ -487,6 +488,7 @@ public class OauthAutoConfiguration {
     private OidcUserService oidcUserService() {
 
         return new OidcUserService() {
+
             @Override
             public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
                 OidcUser oidcUser = super.loadUser(userRequest);

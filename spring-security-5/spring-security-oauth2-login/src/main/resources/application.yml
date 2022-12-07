@@ -17,16 +17,21 @@ spring:
             redirectUri: "{baseUrl}/api/auth/oauth2/login/code/{registrationId}"
           mlnlco:
             client-id: messaging-client
-            client-secret: "{noop}secret"
-            redirectUri: "{baseUrl}/api/auth/oauth2/login/code/{registrationId}"
+            # 这里的密码 不应该有任何前缀 ...
+            client-secret: "secret"
+            redirectUri: "{baseScheme}://127.0.0.1{basePort}/api/auth/oauth2/login/code/{registrationId}"
             client-name: mlnlco-messaging-client
+            scope:
+              - message.read
+              - profile
+              - openid
         provider:
           mlnlco:
-            authorizationUri: http://localhost:8080/oauth2/authorize
-            tokenUri: http://localhost:8080/oauth2/token
-#            userInfoUri: http://localhost:8080/userinfo
-            userNameAttribute: id
-            jwkSetUri: http://localhost:8080/oauth2/jwks
+#            authorizationUri: http://localhost:8080/oauth2/authorize
+#            tokenUri: http://localhost:8080/oauth2/token
+##            userInfoUri: http://localhost:8080/userinfo
+#            userNameAttribute: id
+#            jwkSetUri: http://localhost:8080/oauth2/jwks
             issuerUri: http://localhost:8080
 
 
